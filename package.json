@@ -1,0 +1,15 @@
+{
+  "name": "memory-audit",
+  "version": "0.1.0",
+  "description": "把 agent 的记忆摊开：写在第几轮、还在不在、有没有被用过、和谁打架",
+  "type": "module",
+  "bin": { "memory-audit": "./src/cli.mjs" },
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test",
+    "audit": "node src/cli.mjs"
+  },
+  "keywords": ["agent", "memory", "provenance", "audit", "session", "llm"],
+  "license": "MIT",
+  "files": ["src", "README.md"]
+}

@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "slots": [
+    {
+      "slot": "datastore",
+      "label": "存储引擎",
+      "terms": ["sqlite", "postgresql", "postgres", "mysql", "mariadb", "mongodb", "mongo", "redis", "duckdb", "dynamodb", "firestore", "sql server", "oracle", "json 文件", "jsonl 文件", "indexeddb", "leveldb", "rocksdb"]
+    },
+    {
+      "slot": "language",
+      "label": "语言",
+      "terms": ["typescript", "javascript", "python", "rust", "golang", "go", "java", "kotlin", "swift", "c++", "c#"]
+    },
+    {
+      "slot": "pkg_manager",
+      "label": "包管理器",
+      "terms": ["pnpm", "npm", "yarn", "bun", "pip", "poetry", "uv", "cargo", "go modules"]
+    },
+    {
+      "slot": "framework",
+      "label": "框架",
+      "terms": ["react", "vue", "svelte", "next.js", "nextjs", "nuxt", "astro", "express", "hono", "fastify", "electron", "tauri", "cordis"]
+    },
+    {
+      "slot": "ui_system",
+      "label": "UI 方案",
+      "terms": ["tailwind", "css modules", "styled-components", "sass", "less", "vanilla css", "shadcn", "ant design", "element plus"]
+    },
+    {
+      "slot": "model",
+      "label": "模型",
+      "terms": ["gpt-4", "gpt-5", "claude", "deepseek", "gemini", "qwen", "llama", "mistral"]
+    },
+    {
+      "slot": "license",
+      "label": "许可证",
+      "terms": ["mit", "apache-2.0", "apache 2.0", "gpl", "agpl", "bsd", "mpl"]
+    },
+    {
+      "slot": "deploy",
+      "label": "部署",
+      "terms": ["github pages", "vercel", "netlify", "cloudflare", "docker", "fly.io", "railway", "aws", "aliyun", "vercel"]
+    },
+    {
+      "slot": "test_runner",
+      "label": "测试运行器",
+      "terms": ["node:test", "jest", "vitest", "mocha", "pytest", "playwright", "cypress"]
+    },
+    {
+      "slot": "build_tool",
+      "label": "构建工具",
+      "terms": ["tsc", "esbuild", "rollup", "webpack", "vite", "swc", "babel"]
+    }
+  ],
+  "triggers": {
+    "decision": ["决定", "定了", "定下来", "就用", "直接用", "统一用", "统一", "一律", "必须", "默认", "保持", "优先", "采用", "选用", "用", "使用", "基于", "为准", "改用", "换成", "切换到", "改用", "go with", "use", "adopt", "switch to", "move to", "stick with", "decided", "default to", "must", "always"],
+    "replacement": ["改用", "换成", "切换到", "改为", "替代", "取代", "而不是", "不用", "不再用", "弃用", "instead of", "replace", "switch to", "move to", "rather than"],
+    "negation": ["不要", "别", "不再", "不用", "不采用", "禁止", "避免", "不能", "无需", "绝不", "never", "don't", "do not", "avoid", "no longer", "without"]
+  }
+}
