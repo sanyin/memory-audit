@@ -25,6 +25,7 @@ node src/cli.mjs examples/demo-postgres-sqlite.jsonl --open
 # 发之前查一句：这句话说过吗？（适合做钩子）
 node src/cli.mjs check --latest -t "把 README 再重写一版"
 node src/cli.mjs repeats --latest                # 只列重复要求
+node src/cli.mjs corpus --limit 12               # 跨会话：哪些记忆活过了边界
 echo '{"prompt":"把 README 重写一下"}' | node src/cli.mjs hook --session examples/demo-repeat.jsonl  # 钩子：只在已遗忘时说话
 ```
 
@@ -107,6 +108,36 @@ echo '{"prompt":"把 README 重写一下，中英文都要"}' \
 冷启动约 0.9s，命中缓存约 75ms（缓存键是会话文件的 `size + mtime`，另给 30 秒"近期过期"容忍，否则活跃会话永远打不中）。
 
 
+## 跨会话：记忆有没有活过会话边界
+
+单会话审计回答"这 44 轮里它记住了什么"。但真正的问题是：**换了一个会话，你还记得吗？**
+
+```bash
+node src/cli.mjs corpus --limit 12            # 最近 12 个会话
+node src/cli.mjs corpus -p --D-Skills--       # 只看某个项目
+```
+
+```
+跨会话审计 · 12 个会话 · 135 轮 · 83.4M 字符
+  记忆线索 891 · 跨会话出现过 5 · 只活在一个会话 879
+  跨会话重复 5 · 跨会话冲突 0（写了等于没写 0）
+  ↺ 跨会话重复：a14332ec#1 → 341bf0d2#1 → d2a7b339#1 → cf40e023#1 …  「任务：为论文 m02 生成中文精读笔记（完整 8 项模板）。」
+```
+
+**0.6% 的记忆跨过了会话边界**。这不是说另外 99.4% 浪费了——是说会话之间根本不共享记忆，除非它被写进文件、技能或代码。七次为同一篇论文建会话、七次重述同一段模板，就是这件事最直接的证据。
+
+三件事在跨会话尺度上换了含义：
+
+| 单会话 | 跨会话 |
+| --- | --- |
+| 哪一轮写进去的 | 哪个会话、第几轮 |
+| 有没有被用过 | 后续会话里还有没有它的痕迹（逐轮 `termIndex`） |
+| 和谁打架 | 会话 A 说 Postgres、会话 B 说 SQLite，之后谁还在被使用 |
+
+报告里的「生命线」一行一条记忆、一个圆点一个会话：空心＝没出现，深色＝出现过，青色＝出现多次。冲突裁决多了一个最关键的窗口——**写下这句话的那个会话本身**：你说改用 SQLite，然后同一个会话里继续按 Postgres 的连接串写代码，那是最硬的"写了等于没写"。
+
+跨会话分析按 `cwd` 隔离：不同项目的会话永不比较。把一篇强化学习论文里的 "Retain Oracle" 和另一个项目的 "SQLite" 判成存储引擎冲突，是这类工具最容易犯的错，它会让整份报告变成噪音。
+
 ## 它明确不做的事
 
 1. **不把共现当因果。** 模型提到 `postgres` 可能正在否决它。工具只报「出现过」，不报「依赖过」。
@@ -143,6 +174,8 @@ src/claims.mjs    规则式断言抽取（槽位 + 取值 + 极性），决策�
 src/analyze.mjs   记忆单元、存活区间、三级证据、冲突裁决、压缩保真度、技能盘存
 src/repeat.mjs    重复检测（对称相似度聚类）与发前守卫（非对称覆盖率）
 src/hook.mjs      钩子模式：静默规则、payload 解析、缓存
+src/corpus.mjs    跨会话：发现会话、聚成线索、按项目隔离的冲突
+src/corpus-report.mjs  跨会话报告（生命线）
 hooks/            Claude Code 配置样例与行为契约
 src/report.mjs    单文件 HTML（无外部依赖）
 src/prov.mjs      W3C PROV-JSON 导出
@@ -163,7 +196,7 @@ src/cli.mjs       命令行：audit / check / repeats
 node --test
 ```
 
-22 个测试，五组：会话解析（含多帧 zstd）、冲突裁决、压缩保真度、重复检测、钩子契约。其中两个是逐字断言：开头那句「第 9 轮写入 SQLite，与第 3 轮 Postgres 冲突；此后 12 轮 Postgres 4 次、SQLite 0 次」重建为真实 transcript，断言 `write-ignored`、`windowTurns=12`、`oldMentions=4`、`newMentions=0`；`examples/demo-repeat.jsonl` 断言「压缩后重述」的回合对 `[3, 12]` 与 `evictedAtTurn=8`。
+27 个测试，六组：会话解析（含多帧 zstd）、冲突裁决、压缩保真度、重复检测、钩子契约、跨会话聚类。其中两个是逐字断言：开头那句「第 9 轮写入 SQLite，与第 3 轮 Postgres 冲突；此后 12 轮 Postgres 4 次、SQLite 0 次」重建为真实 transcript，断言 `write-ignored`、`windowTurns=12`、`oldMentions=4`、`newMentions=0`；`examples/demo-repeat.jsonl` 断言「压缩后重述」的回合对 `[3, 12]` 与 `evictedAtTurn=8`。
 
 ## 许可
 

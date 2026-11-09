@@ -5,6 +5,8 @@ import { homedir } from 'node:os';
 import { analyzeSession } from './analyze.mjs';
 import { renderReport } from './report.mjs';
 import { toProvJson } from './prov.mjs';
+import { discoverSessions, analyzeCorpus } from './corpus.mjs';
+import { renderCorpusReport } from './corpus-report.mjs';
 import { checkMessage } from './repeat.mjs';
 import { decide, parseInput, readCache, writeCache, cacheKeyFor, projectUnits } from './hook.mjs';
 
@@ -17,7 +19,7 @@ async function readStdin() {
   for await (const chunk of process.stdin) chunks.push(chunk);
   return Buffer.concat(chunks).toString('utf8');
 }
-const MODES = new Set(['audit', 'check', 'repeats', 'hook']);
+const MODES = new Set(['audit', 'check', 'repeats', 'hook', 'corpus']);
 const mode = MODES.has(argv[0]) ? argv.shift() : 'audit';
 
 function parseArgs(argv) {
@@ -33,6 +35,9 @@ function parseArgs(argv) {
     else if (a === '--threshold') out.threshold = Number(argv[++i] ?? 0.72);
     else if (a === '--fail-on-match') out.failOnMatch = true;
     else if (a === '--hook-json') out.hookJson = true;
+    else if (a === '--root') out.root = resolve(argv[++i]);
+    else if (a === '--project' || a === '-p') out.project = argv[++i];
+    else if (a === '--limit') out.limit = Number(argv[++i] ?? 12);
     else if (a === '--block') out.block = true;
     else if (a === '--session' || a === '-s') out.session = resolve(argv[++i]);
     else if (a === '--no-html') out.html = false;
@@ -55,6 +60,7 @@ if (args.help || (args._.length === 0 && !args.latest && mode === 'audit') || ((
   memory-audit check <session> --text "要发出去的话"      # 发之前查：这句话说过吗
   memory-audit repeats <session>                         # 只列重复要求
   memory-audit hook [--session <session>]                # 钩子模式：stdin 收 payload，只报「已遗忘的重复」
+  memory-audit corpus [--limit N] [--project <name>]     # 跨会话：哪些记忆活过了会话边界
 
 选项
   -m, --memory <file|dir>   额外的记忆库（markdown 的 - 列表项，可重复）
@@ -72,6 +78,10 @@ if (args.help || (args._.length === 0 && !args.latest && mode === 'audit') || ((
       -s, --session <file>  指定会话（否则用 payload.transcript_path，再否则取最近一次）
       --hook-json           输出 Claude Code 的 hookSpecificOutput 契约
       --block               命中时以 2 退出（会阻断发送，默认不阻断）
+  corpus 专用
+      --root <dir>          会话根目录（默认 ~/.dsh/sessions）
+      -p, --project <name>  只看某个项目（按目录名或子串匹配）
+      --limit <n>           最多解析几个会话（默认 12，按文件时间取最近的）
 
 例
   memory-audit --latest --open
@@ -117,6 +127,45 @@ function expandMemory(paths) {
 }
 
 let transcripts = args._.length ? args._.map((p) => resolve(p)) : null;
+
+if (mode === 'corpus') {
+  const found = discoverSessions({ root: args.root, project: args.project, limit: args.limit ?? 12 });
+  if (!found.length) {
+    console.error('没有找到任何会话');
+    process.exit(2);
+  }
+  process.stderr.write(`发现 ${found.length} 个会话，开始解析…\n`);
+  const data = analyzeCorpus({ paths: found, memoryPaths: expandMemory(args.memory) });
+  const { headline: h } = data;
+
+  console.log(`\n跨会话审计 · ${h.sessions} 个会话 · ${h.turns} 轮 · ${(h.textBytes / 1e6).toFixed(1)}M 字符`);
+  console.log(`  记忆线索 ${h.threads} · 跨会话出现过 ${h.crossSessionThreads} · 只活在一个会话 ${h.orphans}`);
+  console.log(`  跨会话重复 ${h.crossRepeats} · 跨会话冲突 ${h.crossConflicts}（写了等于没写 ${h.survived}）`);
+
+  for (const c of data.crossConflicts.slice(0, 3)) {
+    console.log(
+      `  ⚠ [${c.slot}] 会话 ${c.newer.label} 第 ${c.newer.turn} 轮「${c.newer.text}」 vs 会话 ${c.older.label} 第 ${c.older.turn} 轮「${c.older.text}」；此后 ${c.sessionsAfter} 个会话：${c.older.value} 在 ${c.oldSessions} 个会话被用，${c.newer.value} 在 ${c.newSessions} 个会话被用。`,
+    );
+  }
+  for (const r of data.crossRepeats.slice(0, 3)) {
+    console.log(`  ↺ 跨会话重复：${r.sessions.map((s) => `${s.label}#${s.turn}`).join(' → ')}  「${r.text}」`);
+  }
+
+  mkdirSync(args.out, { recursive: true });
+  const html = join(args.out, 'corpus.html');
+  writeFileSync(html, renderCorpusReport(data), 'utf8');
+  console.log(`  报告 → ${html}`);
+  if (args.json) {
+    mkdirSync(dirname(args.json), { recursive: true });
+    writeFileSync(args.json, JSON.stringify(data, null, 2), 'utf8');
+    console.log(`  数据 → ${args.json}`);
+  }
+  if (args.open) {
+    const { spawn } = await import('node:child_process');
+    spawn(process.platform === 'win32' ? 'cmd' : 'open', process.platform === 'win32' ? ['/c', 'start', '', html] : [html], { detached: true, stdio: 'ignore' }).unref();
+  }
+  process.exit(0);
+}
 
 if (mode === 'hook') {
   // A hook must never break the user's input: every failure path exits 0 silently.

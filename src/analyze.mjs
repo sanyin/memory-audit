@@ -91,6 +91,7 @@ export function analyzeSession({ transcriptPath, memoryPaths = [] }) {
   const turnNumbers = turns.map((t) => t.turn);
 
   const surface = new Map();
+  const termIndex = new Map();
   for (const t of turns) {
     const all = [];
     const byWhere = { reasoning: [], text: [], 'tool-call': [] };
@@ -99,8 +100,18 @@ export function analyzeSession({ transcriptPath, memoryPaths = [] }) {
       byWhere[chunk.where]?.push(chunk.text);
     }
     const joined = all.join('\n');
+    const hits = matchTerms(joined);
+    // Per-slot-value turn index: lets the cross-session view count mentions
+    // without re-scanning every transcript.
+    for (const [key, n] of hits) {
+      const row = termIndex.get(key) ?? { turns: new Set(), occurrences: 0, toolTurns: new Set() };
+      row.turns.add(t.turn);
+      row.occurrences += n;
+      if (matchTerms(byWhere['tool-call'].join('\n')).get(key)) row.toolTurns.add(t.turn);
+      termIndex.set(key, row);
+    }
     surface.set(t.turn, {
-      hits: matchTerms(joined),
+      hits,
       where: { reasoning: matchTerms(byWhere.reasoning.join('\n')), text: matchTerms(byWhere.text.join('\n')), 'tool-call': matchTerms(byWhere['tool-call'].join('\n')) },
       compact: joined.replace(/[\s\u3000]+/g, ''),
     });
@@ -365,6 +376,12 @@ export function analyzeSession({ transcriptPath, memoryPaths = [] }) {
       catalogTurns: parsed.catalogTurns,
     },
     evictions,
+    termIndex: Object.fromEntries(
+      [...termIndex.entries()].map(([k, v]) => [
+        k,
+        { turns: [...v.turns].sort((a, b) => a - b), occurrences: v.occurrences, toolTurns: [...v.toolTurns].sort((a, b) => a - b) },
+      ]),
+    ),
     compactions: parsed.compactions,
     goals: parsed.goals.map((g) => ({ operation: g.operation, turn: g.turn, objective: g.goal?.objective ?? '', at: g.at })),
     pressure,
