@@ -48,6 +48,26 @@ function conflictCard(c) {
   </article>`;
 }
 
+function repeatCard(r) {
+  const tone = r.restatedAfterEviction ? 'bad' : r.exact ? 'warn' : 'ok';
+  const why = r.restatedAfterEviction
+    ? `第一次出现在第 ${r.firstTurn} 轮，第 ${r.evictedAtTurn} 轮被压缩抹掉，之后你又提了一次——摘要没接住它。`
+    : r.exact
+      ? '同一句话，逐字重复。第一次没有生效。'
+      : `措辞不同，内容相近（相似度 ${r.maxSim}）。`;
+  return `
+  <article class="conflict rep ${tone}">
+    <header>
+      <span class="slot">重复 ${r.count}×</span>
+      <span class="verdict ${r.exact ? 'warn' : 'ok'}">${r.exact ? '原样重复' : `近似重复 ${r.maxSim}`}</span>
+      ${r.restatedAfterEviction ? '<span class="verdict bad">压缩后重述</span>' : ''}
+    </header>
+    <p class="sentence">第 ${r.turns.map((t) => `<b>${t}</b>`).join('、')} 轮 · 跨 ${r.gap} 轮</p>
+    <p class="repeat-text">「${esc(r.text)}」</p>
+    <p class="hint">${esc(why)}</p>
+  </article>`;
+}
+
 function ledgerRow(u) {
   const k = KIND[u.kind] ?? { label: u.kind, tone: 'req' };
   const live = u.liveTurns?.length ?? 0;
@@ -117,6 +137,8 @@ h2 .cn{text-transform:none;letter-spacing:0;color:var(--text);font-size:18px;mar
 .sentence b{font-family:var(--mono);color:var(--text)}
 .sentence .old{color:#ff9a9a} .sentence .new{color:#7fe3ce}
 .hint{color:var(--dim);font-size:13px;margin:6px 0 0}
+.conflict.rep{border-left-color:var(--violet)}
+.conflict.rep .repeat-text{margin:6px 0 2px;font-size:15px;line-height:1.75;color:#dbe2ea;border-left:2px solid var(--line);padding-left:12px}
 details{margin-top:10px} summary{cursor:pointer;color:var(--dim);font-size:13px}
 .evidence{margin-top:8px;font-size:13px;display:grid;gap:4px}
 code{font-family:var(--mono);background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:0 5px;font-size:12px}
@@ -175,7 +197,7 @@ footer{margin-top:64px;color:var(--dim);font-size:12px;border-top:1px solid var(
   <div class="stat ${h.conflicts ? 'bad' : ''}"><div class="k">冲突</div><div class="v">${h.conflicts}</div></div>
   <div class="stat warn"><div class="k">写了等于没写</div><div class="v">${h.writeIgnored}</div></div>
   <div class="stat"><div class="k">无强证据的记忆</div><div class="v">${h.neverReused}</div></div>
-  <div class="stat ${h.repeated ? 'warn' : ''}"><div class="k">被重复说过的</div><div class="v">${h.repeated}</div></div>
+  <div class="stat ${h.repeatGroups ? 'warn' : ''}"><div class="k">重复要求（组）</div><div class="v">${h.repeatGroups ?? h.repeated}</div></div>
   <div class="stat ${h.evictedUnits ? 'bad' : ''}"><div class="k">被压缩/裁剪遗忘</div><div class="v">${h.evictedUnits}</div></div>
 </div>
 
@@ -183,6 +205,9 @@ footer{margin-top:64px;color:var(--dim);font-size:12px;border-top:1px solid var(
 ${conflicts.length ? conflicts.map(conflictCard).join('') : `<div class="empty">这个会话里没有可以被词表判定的槽位冲突。
   这通常不是“没有冲突”，而是<b>冲突没有被写成可以判定的形式</b>：自然语言的要求（“要完整” vs “别啰嗦”）之间也能打架，但规则抓不住。
   工具在这里留空，而不是猜一个。</div>`}
+
+<h2><span class="cn">重复</span>同一句话被说第二遍</h2>
+${(data.repeats ?? []).length ? (data.repeats ?? []).map(repeatCard).join('') : `<div class="empty">没有检出重复。注意：这里的比对是词面的，换了说法的重问查不到——所以“没有重复”不等于“没有被重复要求”。</div>`}
 
 <h2><span class="cn">账本</span>每一条记忆的出生与去向</h2>
 <div class="filters" id="filters">

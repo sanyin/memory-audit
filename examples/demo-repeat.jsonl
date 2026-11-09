@@ -1,0 +1,45 @@
+{"seq":0,"time":1700000001000,"type":"session","id":"session-demo-repeat","version":4,"createdAt":1700000000000,"cwd":"/repo"}
+{"seq":1,"time":1700000002000,"type":"turn/start","data":{"turn":1}}
+{"seq":2,"time":1700000003000,"type":"user/message","data":{"content":[{"type":"text","text":"开始吧，先把文档补齐。"}],"role":"user"}}
+{"seq":3,"time":1700000004000,"type":"assistant/message","data":{"turn":1,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"好，先看现有 README。"}]}}}
+{"seq":4,"time":1700000005000,"type":"turn/end","data":{"turn":1}}
+{"seq":5,"time":1700000006000,"type":"turn/start","data":{"turn":2}}
+{"seq":6,"time":1700000007000,"type":"user/message","data":{"content":[{"type":"text","text":"现在别动文档，先改代码。"}],"role":"user"}}
+{"seq":7,"time":1700000008000,"type":"assistant/message","data":{"turn":2,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"明白，先改代码。"}]}}}
+{"seq":8,"time":1700000009000,"type":"turn/end","data":{"turn":2}}
+{"seq":9,"time":1700000010000,"type":"turn/start","data":{"turn":3}}
+{"seq":10,"time":1700000011000,"type":"user/message","data":{"content":[{"type":"text","text":"把 README 重写一遍，中文为主，再加一份英文版。"}],"role":"user"}}
+{"seq":11,"time":1700000012000,"type":"assistant/message","data":{"turn":3,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"好的：重写 README，中文为主，补英文版。"}]}}}
+{"seq":12,"time":1700000013000,"type":"turn/end","data":{"turn":3}}
+{"seq":13,"time":1700000014000,"type":"turn/start","data":{"turn":4}}
+{"seq":14,"time":1700000015000,"type":"assistant/message","data":{"turn":4,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"第 4 轮：整理文档结构。"}]}}}
+{"seq":15,"time":1700000016000,"type":"turn/end","data":{"turn":4}}
+{"seq":16,"time":1700000017000,"type":"turn/start","data":{"turn":5}}
+{"seq":17,"time":1700000018000,"type":"assistant/message","data":{"turn":5,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"第 5 轮：整理文档结构。"}]}}}
+{"seq":18,"time":1700000019000,"type":"turn/end","data":{"turn":5}}
+{"seq":19,"time":1700000020000,"type":"turn/start","data":{"turn":6}}
+{"seq":20,"time":1700000021000,"type":"assistant/message","data":{"turn":6,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"第 6 轮：整理文档结构。"}]}}}
+{"seq":21,"time":1700000022000,"type":"turn/end","data":{"turn":6}}
+{"seq":22,"time":1700000023000,"type":"turn/start","data":{"turn":7}}
+{"seq":23,"time":1700000024000,"type":"assistant/message","data":{"turn":7,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"第 7 轮：整理文档结构。"}]}}}
+{"seq":24,"time":1700000025000,"type":"turn/end","data":{"turn":7}}
+{"seq":25,"time":1700000026000,"type":"turn/start","data":{"turn":8}}
+{"seq":26,"time":1700000027000,"type":"compaction/start","data":{"compactionId":"c1","turn":8}}
+{"seq":27,"time":1700000028000,"type":"compaction/summary","data":{"compactionId":"c1","summary":[{"type":"text","text":"## 进展\n- 项目已初始化，代码结构已经改完。\n- 文档工作正在进行中。"}]}}
+{"seq":28,"time":1700000029000,"type":"compaction/end","data":{"compactionId":"c1","turn":8}}
+{"seq":29,"time":1700000030000,"type":"user/message","data":{"content":[{"type":"text","text":"<compacted-summary> 前文已压缩"}],"role":"user"},"surfaceOp":{"op":"replace","startSeq":10,"endSeq":25}}
+{"seq":30,"time":1700000031000,"type":"assistant/message","data":{"turn":8,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"继续。"}]}}}
+{"seq":31,"time":1700000032000,"type":"turn/end","data":{"turn":8}}
+{"seq":32,"time":1700000033000,"type":"turn/start","data":{"turn":9}}
+{"seq":33,"time":1700000034000,"type":"assistant/message","data":{"turn":9,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"第 9 轮：继续收尾。"}]}}}
+{"seq":34,"time":1700000035000,"type":"turn/end","data":{"turn":9}}
+{"seq":35,"time":1700000036000,"type":"turn/start","data":{"turn":10}}
+{"seq":36,"time":1700000037000,"type":"assistant/message","data":{"turn":10,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"第 10 轮：继续收尾。"}]}}}
+{"seq":37,"time":1700000038000,"type":"turn/end","data":{"turn":10}}
+{"seq":38,"time":1700000039000,"type":"turn/start","data":{"turn":11}}
+{"seq":39,"time":1700000040000,"type":"assistant/message","data":{"turn":11,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"第 11 轮：继续收尾。"}]}}}
+{"seq":40,"time":1700000041000,"type":"turn/end","data":{"turn":11}}
+{"seq":41,"time":1700000042000,"type":"turn/start","data":{"turn":12}}
+{"seq":42,"time":1700000043000,"type":"user/message","data":{"content":[{"type":"text","text":"README 再重写一遍，中文为主，也要一份英文版。"}],"role":"user"}}
+{"seq":43,"time":1700000044000,"type":"assistant/message","data":{"turn":12,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"收到，README 再重写一遍。"}]}}}
+{"seq":44,"time":1700000045000,"type":"turn/end","data":{"turn":12}}

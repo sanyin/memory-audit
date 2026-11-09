@@ -1,0 +1,26 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: 运行测试
+        run: node --test
+      - name: 冒烟：审计示例会话并产出报告
+        run: |
+          node src/cli.mjs examples/demo-postgres-sqlite.jsonl --out audit-out --prov audit-out/prov.json
+          test -s audit-out/session-demo-postgres-sqlite.html
+          node src/cli.mjs check examples/demo-repeat.jsonl -t "把 README 重写一下，中英文都要"

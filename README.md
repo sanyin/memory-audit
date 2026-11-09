@@ -8,7 +8,7 @@
 记忆审计 · session-b3ea911a · 44 轮 · 21.4M 字符
   记忆单元 19（决策 0 / 要求 17 / 目标 2）
   冲突 0
-  被重复说过 2 条 · 无强证据 8 条 · 压缩遗忘 9 条（2583 tokens）
+  重复要求 0 组（压缩后重述 0 组） · 无强证据 8 条 · 压缩遗忘 9 条（2583 tokens）
   压缩保真度：摘要保留 3 条 / 丢弃 6 条（依据 1 份摘要）
   技能 155 装 / 1 用
 ```
@@ -21,6 +21,10 @@ node src/cli.mjs --latest                        # 自动挑最近一次 DSH 会
 node src/cli.mjs session.jsonl -m ./MEMORY.md    # 加上外部记忆库（markdown 列表项）
 node src/cli.mjs session.jsonl --prov prov.json  # 导出 W3C PROV-JSON
 node src/cli.mjs examples/demo-postgres-sqlite.jsonl --open
+
+# 发之前查一句：这句话说过吗？（适合做钩子）
+node src/cli.mjs check --latest -t "把 README 再重写一版"
+node src/cli.mjs repeats --latest                # 只列重复要求
 ```
 
 零依赖，Node ≥ 22。产物：`audit-out/<session-id>.html`（可视化），可选 `--json`（完整数据）与 `--prov`（标准溯源）。
@@ -46,6 +50,57 @@ node src/cli.mjs examples/demo-postgres-sqlite.jsonl --open
 | 仅在上下文 | 只在 `liveTurns` 里存在过 | 不算「用过」 |
 
 三档分开计数，不合并成一个好看的总数。
+
+## 重复：最便宜的记忆失败证据
+
+「有没有被用过」需要推断，「是不是又说了第二遍」不需要——第二句话本身就是证据。
+
+```bash
+$ node src/cli.mjs repeats examples/demo-repeat.jsonl
+重复要求 1 组（会话 session-demo-repeat，12 轮）：
+
+  2×  第 3、12 轮  跨 9 轮 [压缩后重述]
+      「把 README 重写一遍，中文为主，再加一份英文版。」
+
+其中 1 组发生在压缩之后：摘要没接住，你只好又说了一遍。
+```
+
+`[压缩后重述]` 是这里最值钱的一类：第一次的要求在第 8 轮被压缩抹掉，主张里没有留下它，于是第 12 轮你又提了一次。**这是压缩失真的直接后果，不是你的记性问题。**
+
+两种用法，精度不同，别混：
+
+| 命令 | 判据 | 用途 |
+| --- | --- | --- |
+| `repeats` | 对称相似度 ≥ 0.62（近似原样） | 事后审计，高精度。「铁证」只在接近原样时成立 |
+| `check --text` | 新消息的**覆盖率** ≥ 0.45（非对称） | 发之前预警，高召回。短消息不会被长记忆「解释掉」 |
+
+`check` 会明确区分两种命中：
+
+```bash
+$ node src/cli.mjs check examples/demo-repeat.jsonl -t "把 README 重写一下，中英文都要"
+这句话和第 3、12 轮的记忆重叠：
+
+  覆盖 69%  部分重叠  · 第 3 轮  ·  已在第 8 轮被压缩，上下文里没有了
+  「把 README 重写一遍，中文为主，再加一份英文版。」
+  共用词：readme、重写一、英文
+
+注意：命中的记忆已经不在上下文里了——重复它不会让模型"想起来"，只会再占一次预算。
+```
+
+### 当钩子用
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [{
+      "hooks": [{ "type": "command", "command": "node D:/Skills/memory-auditor/src/cli.mjs check --latest --stdin" }]
+    }]
+  }
+}
+```
+
+`--fail-on-match` 会把强命中变成退出码 1（适合 CI 或需要阻断的钩子）；默认只提示不阻断。阈值 `--threshold 0.6` 更保守，`0.3` 更敏感。
+
 
 ## 它明确不做的事
 
@@ -81,15 +136,17 @@ node src/cli.mjs examples/demo-postgres-sqlite.jsonl --open
 src/session.mjs   多帧 zstd 解压 → turns；压缩/裁剪 → eviction 区间；surfaceOp → 生命周期
 src/claims.mjs    规则式断言抽取（槽位 + 取值 + 极性），决策词必须贴着术语
 src/analyze.mjs   记忆单元、存活区间、三级证据、冲突裁决、压缩保真度、技能盘存
+src/repeat.mjs    重复检测（对称相似度聚类）与发前守卫（非对称覆盖率）
 src/report.mjs    单文件 HTML（无外部依赖）
 src/prov.mjs      W3C PROV-JSON 导出
-src/cli.mjs       命令行
+src/cli.mjs       命令行：audit / check / repeats
 ```
 
 ## 已知不足
 
 - 关键词比对会**漏判**：摘要换了说法就查不到，所以「丢弃」应读作「查无实据」，不是「确定丢失」。
 - 槽位词表只覆盖技术栈类决策。真实对话里绝大多数约束是自然语言，抓不到就是抓不到。
+- `repeats` 抓的是近似原样；换了说法的重问，它查不到——那是 `check` 的活，而 `check` 会因此更吵。
 - 没有 token 级位置信息，因此无法回答「记忆在上下文里的位置是否影响它被使用」。
 - 只测「说过/写过」，不测「因果」。因果需要干预实验，不是读日志能得到的。
 
@@ -99,7 +156,7 @@ src/cli.mjs       命令行
 node --test
 ```
 
-6 个测试。其中一个把开头那句「第 9 轮写入 SQLite，与第 3 轮 Postgres 冲突；此后 12 轮 Postgres 4 次、SQLite 0 次」重建为真实 transcript，逐字断言 `write-ignored`、`windowTurns=12`、`oldMentions=4`、`newMentions=0`。
+15 个测试，四组：会话解析（含多帧 zstd）、冲突裁决、压缩保真度、重复检测。其中两个是逐字断言：开头那句「第 9 轮写入 SQLite，与第 3 轮 Postgres 冲突；此后 12 轮 Postgres 4 次、SQLite 0 次」重建为真实 transcript，断言 `write-ignored`、`windowTurns=12`、`oldMentions=4`、`newMentions=0`；`examples/demo-repeat.jsonl` 断言「压缩后重述」的回合对 `[3, 12]` 与 `evictedAtTurn=8`。
 
 ## 许可
 

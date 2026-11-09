@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { parseSession, agentSurface, isLive } from './session.mjs';
 import { extractClaims, extractMemoryFile, splitSentences, lexicon, hash } from './claims.mjs';
+import { clusterRepeats } from './repeat.mjs';
 
 const CANON = { postgresql: 'postgres', mongo: 'mongodb', nextjs: 'next.js', 'apache 2.0': 'apache-2.0', golang: 'go', 'json 文件': 'json file', 'jsonl 文件': 'jsonl file' };
 
@@ -65,7 +66,12 @@ export function featuresOf(text) {
   return [...out];
 }
 
-const DIRECTIVES = ['要', '必须', '不要', '别', '请', '希望', '应该', '需要', '不能', '记得', '保持', '优先', '一律', '务必', '确保', '避免', 'must', 'should', 'need to', 'please', 'always', 'never', "don't", 'do not', 'avoid', 'ensure', 'keep'];
+const DIRECTIVES = [
+  '要', '必须', '不要', '别', '请', '希望', '应该', '需要', '不能', '记得', '保持', '优先', '一律', '务必', '确保', '避免',
+  '重写', '改成', '改为', '更新', '新增', '加一个', '加一份', '补上', '补充', '实现', '修复', '删掉', '去掉', '换成',
+  '重构', '整理', '优化', '统一', '检查', '评价', '打分', '生成', '输出', '帮我', '给我', '麻烦', '做一下', '做个',
+  'must', 'should', 'need to', 'please', 'always', 'never', "don't", 'do not', 'avoid', 'ensure', 'keep', 'rewrite',
+];
 
 export function extractRequirements(text) {
   const out = [];
@@ -334,6 +340,7 @@ export function analyzeSession({ transcriptPath, memoryPaths = [] }) {
   const actionable = units.filter((u) => u.kind === 'claim' || u.kind === 'requirement');
   const neverReused = actionable.filter((u) => u.reuseTurns.length === 0 && u.relatedTurns.length === 0 && u.mentionTurns.length === 0);
   const repeated = units.filter((u) => u.repeatCount > 1);
+  const repeats = clusterRepeats(units);
   const evictedUnits = units.filter((u) => u.evictedAtTurn != null);
 
   return {
@@ -371,6 +378,8 @@ export function analyzeSession({ transcriptPath, memoryPaths = [] }) {
       writeIgnored: conflicts.filter((c) => c.verdict === 'write-ignored' || c.verdict === 'legacy-dominant').length,
       neverReused: neverReused.length,
       repeated: repeated.length,
+      repeatGroups: repeats.length,
+      restatedAfterEviction: repeats.filter((r) => r.restatedAfterEviction).length,
       evictedUnits: evictedUnits.length,
       evictedTokens: evictions.reduce((s, e) => s + (e.tokens ?? 0), 0),
       compactionKept: fidelity.kept,
@@ -378,6 +387,7 @@ export function analyzeSession({ transcriptPath, memoryPaths = [] }) {
     },
     neverReused,
     repeated,
+    repeats,
     evicted: evictedUnits,
     limits: [
       '来源只有四种：用户自己写下的话、压缩摘要、目标记录、记忆文件。模型内部推理不算“记忆来源”，只算“使用证据”。',
