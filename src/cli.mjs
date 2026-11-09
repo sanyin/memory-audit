@@ -6,9 +6,18 @@ import { analyzeSession } from './analyze.mjs';
 import { renderReport } from './report.mjs';
 import { toProvJson } from './prov.mjs';
 import { checkMessage } from './repeat.mjs';
+import { decide, parseInput, readCache, writeCache, cacheKeyFor, projectUnits } from './hook.mjs';
 
 const argv = process.argv.slice(2);
-const MODES = new Set(['audit', 'check', 'repeats']);
+
+/** Windows pipes: sync read of fd 0 can throw EAGAIN, so read the stream. */
+async function readStdin() {
+  if (process.stdin.isTTY) return '';
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  return Buffer.concat(chunks).toString('utf8');
+}
+const MODES = new Set(['audit', 'check', 'repeats', 'hook']);
 const mode = MODES.has(argv[0]) ? argv.shift() : 'audit';
 
 function parseArgs(argv) {
@@ -23,6 +32,9 @@ function parseArgs(argv) {
     else if (a === '--stdin') out.stdin = true;
     else if (a === '--threshold') out.threshold = Number(argv[++i] ?? 0.72);
     else if (a === '--fail-on-match') out.failOnMatch = true;
+    else if (a === '--hook-json') out.hookJson = true;
+    else if (a === '--block') out.block = true;
+    else if (a === '--session' || a === '-s') out.session = resolve(argv[++i]);
     else if (a === '--no-html') out.html = false;
     else if (a === '--latest') out.latest = true;
     else if (a === '--open') out.open = true;
@@ -34,7 +46,7 @@ function parseArgs(argv) {
 
 const args = parseArgs(argv);
 
-if (args.help || (args._.length === 0 && !args.latest && mode === 'audit') || (mode !== 'audit' && args._.length === 0 && !args.latest)) {
+if (args.help || (args._.length === 0 && !args.latest && mode === 'audit') || ((mode === 'check' || mode === 'repeats') && args._.length === 0 && !args.latest)) {
   console.log(`memory-audit — 把 agent 的记忆摊开：写在第几轮、还在不在、有没有被用过、和谁打架
 
 用法
@@ -42,6 +54,7 @@ if (args.help || (args._.length === 0 && !args.latest && mode === 'audit') || (m
   memory-audit --latest                                  # 自动挑最近一次会话
   memory-audit check <session> --text "要发出去的话"      # 发之前查：这句话说过吗
   memory-audit repeats <session>                         # 只列重复要求
+  memory-audit hook [--session <session>]                # 钩子模式：stdin 收 payload，只报「已遗忘的重复」
 
 选项
   -m, --memory <file|dir>   额外的记忆库（markdown 的 - 列表项，可重复）
@@ -55,6 +68,10 @@ if (args.help || (args._.length === 0 && !args.latest && mode === 'audit') || (m
       --stdin               从标准输入读待检查的文本
       --threshold <n>       覆盖率阈值（默认 0.45）
       --fail-on-match       命中就以 1 退出（适合做钩子）
+  hook 专用
+      -s, --session <file>  指定会话（否则用 payload.transcript_path，再否则取最近一次）
+      --hook-json           输出 Claude Code 的 hookSpecificOutput 契约
+      --block               命中时以 2 退出（会阻断发送，默认不阻断）
 
 例
   memory-audit --latest --open
@@ -99,10 +116,56 @@ function expandMemory(paths) {
   return files;
 }
 
-const transcripts = args._.length ? args._.map((p) => resolve(p)) : [latestTranscript()];
+let transcripts = args._.length ? args._.map((p) => resolve(p)) : null;
+
+if (mode === 'hook') {
+  // A hook must never break the user's input: every failure path exits 0 silently.
+  let raw = args.text ?? '';
+  if (!args.text) {
+    try {
+      raw = await readStdin();
+    } catch {
+      raw = '';
+    }
+  }
+  const { prompt, payload } = parseInput(raw);
+  if (!prompt) process.exit(0);
+
+  try {
+    let transcriptPath = args.session ?? transcripts?.[0];
+    if (!transcriptPath && payload?.transcript_path && existsSync(payload.transcript_path)) {
+      transcriptPath = payload.transcript_path;
+    }
+    if (!transcriptPath) transcriptPath = latestTranscript();
+
+    const key = cacheKeyFor(transcriptPath);
+    let units = key ? readCache(transcriptPath, key, { allowStaleMs: 30000 }) : null;
+    if (!units) {
+      const data = analyzeSession({ transcriptPath, memoryPaths: expandMemory(args.memory) });
+      units = projectUnits(data.units);
+      if (key) writeCache(transcriptPath, key, units);
+    }
+
+    const verdict = decide(prompt, units, { threshold: args.threshold });
+    if (!verdict) process.exit(0);
+
+    if (args.hookJson) {
+      process.stdout.write(
+        JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: verdict.advisory } }) + '\n',
+      );
+    } else {
+      process.stdout.write(verdict.advisory + '\n');
+    }
+    process.exit(args.block ? 2 : 0);
+  } catch {
+    process.exit(0);
+  }
+}
+
+if (!transcripts) transcripts = [latestTranscript()];
 
 if (mode === 'check') {
-  const text = args.stdin ? readFileSync(0, 'utf8') : args.text;
+  const text = args.stdin ? await readStdin() : args.text;
   if (!text || !text.trim()) {
     console.error('check 需要 --text "…" 或 --stdin');
     process.exit(2);

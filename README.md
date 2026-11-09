@@ -25,6 +25,7 @@ node src/cli.mjs examples/demo-postgres-sqlite.jsonl --open
 # 发之前查一句：这句话说过吗？（适合做钩子）
 node src/cli.mjs check --latest -t "把 README 再重写一版"
 node src/cli.mjs repeats --latest                # 只列重复要求
+echo '{"prompt":"把 README 重写一下"}' | node src/cli.mjs hook --session examples/demo-repeat.jsonl  # 钩子：只在已遗忘时说话
 ```
 
 零依赖，Node ≥ 22。产物：`audit-out/<session-id>.html`（可视化），可选 `--json`（完整数据）与 `--prov`（标准溯源）。
@@ -87,19 +88,23 @@ $ node src/cli.mjs check examples/demo-repeat.jsonl -t "把 README 重写一下�
 注意：命中的记忆已经不在上下文里了——重复它不会让模型"想起来"，只会再占一次预算。
 ```
 
-### 当钩子用
+### 当钩子用：只在「已遗忘」时说话
 
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [{
-      "hooks": [{ "type": "command", "command": "node D:/Skills/memory-auditor/src/cli.mjs check --latest --stdin" }]
-    }]
-  }
-}
+`check` 会把所有重叠都报出来；`hook` 只在一种情况下开口——**重叠，且那条记忆已经被压缩掉**。其余一律静默：重复但记忆还在（模型看得见，只是啰嗦）、内容全新、输入解析失败，都不打扰。
+
+```bash
+echo '{"prompt":"把 README 重写一下，中英文都要"}' \
+  | node src/cli.mjs hook --session examples/demo-repeat.jsonl --hook-json
+
+{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":
+"[memory-audit] 这句话与第 3 轮的记忆重叠 69%，但那条记忆已在第 8 轮被压缩掉，上下文里已经没有了。\n
+第 3 轮原话：「把 README 重写一遍，中文为主，再加一份英文版。」\n
+如果要沿用当时的要求，请把关键点重述一遍；否则模型只能靠猜。"}}
 ```
 
-`--fail-on-match` 会把强命中变成退出码 1（适合 CI 或需要阻断的钩子）；默认只提示不阻断。阈值 `--threshold 0.6` 更保守，`0.3` 更敏感。
+接入 Claude Code 的配置在 [`hooks/claude-code.settings.json`](hooks/claude-code.settings.json)，行为契约、退出码、性能与限制在 [`hooks/README.md`](hooks/README.md)。**退出码 0 = 没说话或说了不阻断；2 = 只有加 `--block` 且命中时才出现。** 默认永不阻断——词面比对在短句上必然误判，阻断的代价高于漏报。
+
+冷启动约 0.9s，命中缓存约 75ms（缓存键是会话文件的 `size + mtime`，另给 30 秒"近期过期"容忍，否则活跃会话永远打不中）。
 
 
 ## 它明确不做的事
@@ -137,6 +142,8 @@ src/session.mjs   多帧 zstd 解压 → turns；压缩/裁剪 → eviction 区�
 src/claims.mjs    规则式断言抽取（槽位 + 取值 + 极性），决策词必须贴着术语
 src/analyze.mjs   记忆单元、存活区间、三级证据、冲突裁决、压缩保真度、技能盘存
 src/repeat.mjs    重复检测（对称相似度聚类）与发前守卫（非对称覆盖率）
+src/hook.mjs      钩子模式：静默规则、payload 解析、缓存
+hooks/            Claude Code 配置样例与行为契约
 src/report.mjs    单文件 HTML（无外部依赖）
 src/prov.mjs      W3C PROV-JSON 导出
 src/cli.mjs       命令行：audit / check / repeats
@@ -156,7 +163,7 @@ src/cli.mjs       命令行：audit / check / repeats
 node --test
 ```
 
-15 个测试，四组：会话解析（含多帧 zstd）、冲突裁决、压缩保真度、重复检测。其中两个是逐字断言：开头那句「第 9 轮写入 SQLite，与第 3 轮 Postgres 冲突；此后 12 轮 Postgres 4 次、SQLite 0 次」重建为真实 transcript，断言 `write-ignored`、`windowTurns=12`、`oldMentions=4`、`newMentions=0`；`examples/demo-repeat.jsonl` 断言「压缩后重述」的回合对 `[3, 12]` 与 `evictedAtTurn=8`。
+22 个测试，五组：会话解析（含多帧 zstd）、冲突裁决、压缩保真度、重复检测、钩子契约。其中两个是逐字断言：开头那句「第 9 轮写入 SQLite，与第 3 轮 Postgres 冲突；此后 12 轮 Postgres 4 次、SQLite 0 次」重建为真实 transcript，断言 `write-ignored`、`windowTurns=12`、`oldMentions=4`、`newMentions=0`；`examples/demo-repeat.jsonl` 断言「压缩后重述」的回合对 `[3, 12]` 与 `evictedAtTurn=8`。
 
 ## 许可
 

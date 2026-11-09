@@ -205,7 +205,7 @@ export function checkMessage(text, units, { threshold = 0.45 } = {}) {
       // "already forgotten" is the interesting case: you are asking again for
       // something the context no longer contains.
       forgotten: u.evictedAtTurn != null,
-      liveTurns: u.liveTurns?.length ?? 0,
+      liveTurns: Array.isArray(u.liveTurns) ? u.liveTurns.length : (u.liveTurns ?? 0),
     });
   }
   return { hits: hits.sort((a, b) => b.similarity - a.similarity).slice(0, 5), probeSize: probeFeatures.size, tooShort: probeFeatures.size < MIN_PROBE_FEATURES };

@@ -24,3 +24,5 @@ jobs:
           node src/cli.mjs examples/demo-postgres-sqlite.jsonl --out audit-out --prov audit-out/prov.json
           test -s audit-out/session-demo-postgres-sqlite.html
           node src/cli.mjs check examples/demo-repeat.jsonl -t "把 README 重写一下，中英文都要"
+          printf '%s' '{"prompt":"把 README 重写一下，中英文都要"}' | node src/cli.mjs hook -s examples/demo-repeat.jsonl --hook-json | grep -q "第 3 轮"
+          printf '%s' '{"prompt":"今天天气不错，随便聊聊"}' | node src/cli.mjs hook -s examples/demo-repeat.jsonl | grep -q . && exit 1 || true
